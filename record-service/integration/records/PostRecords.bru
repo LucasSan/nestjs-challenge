@@ -1,0 +1,24 @@
+meta {
+  name: PostRecords
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{BASE_URL}}/records
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "artist": "Nirvana",
+    "album": "In Utero",
+    "price": 12,
+    "qty": 10,
+    "format": "Digital",
+    "category": "Rock",
+    "mbid": "eccae410-7577-4daa-b602-92d305828331"
+  }
+  
+}
