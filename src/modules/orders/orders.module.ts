@@ -13,7 +13,7 @@ import { ClientsModule, Transport } from '@nestjs/microservices';
         name: 'ORDERS_SERVICE',
         transport: Transport.RMQ,
         options: {
-          noAck: false,
+          noAck: true,
           urls: ['amqp://localhost:5672'],
           queue: 'orders-queue',
         },

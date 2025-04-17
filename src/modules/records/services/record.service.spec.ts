@@ -7,6 +7,7 @@ import { CreateRecordRequestDTO } from '../dtos/create-record.request.dto';
 import { UpdateRecordRequestDTO } from '../dtos/update-record.request.dto';
 import { RecordCategory, RecordFormat } from '../schemas/record.enum';
 import { MusicBrainzService } from 'src/utils/api';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
 
 const mockRecordModel = {
   create: jest.fn(),
@@ -23,6 +24,11 @@ const mockMusicBrainzService = {
   getReleaseData: jest.fn(),
 };
 
+const mockCacheManager = {
+  get: jest.fn(),
+  set: jest.fn(),
+};
+
 describe('RecordService', () => {
   let service: RecordService;
   let recordModel: Model<Record>;
@@ -34,6 +40,7 @@ describe('RecordService', () => {
         RecordService,
         { provide: getModelToken('Record'), useValue: mockRecordModel },
         { provide: MusicBrainzService, useValue: mockMusicBrainzService },
+        { provide: CACHE_MANAGER, useValue: mockCacheManager },
       ],
     }).compile();
 
@@ -132,7 +139,18 @@ describe('RecordService', () => {
   });
 
   describe('findAll', () => {
-    it('should return all records filtered', async () => {
+    it('should return cached result if present', async () => {
+      const cachedResult = { data: [], total: 0 };
+      mockCacheManager.get.mockResolvedValueOnce(cachedResult);
+
+      const result = await service.findAll({ limit: 10, offset: 0 });
+      expect(result).toEqual(cachedResult);
+      expect(mockCacheManager.get).toHaveBeenCalled();
+      expect(recordModel.find).not.toHaveBeenCalled();
+    });
+
+    it('should query DB and set cache if no cached result', async () => {
+      mockCacheManager.get.mockResolvedValueOnce(null);
       const mockRecords = [
         {
           artist: 'A',
@@ -145,7 +163,7 @@ describe('RecordService', () => {
       mockRecordModel.exec.mockResolvedValue(mockRecords);
       mockRecordModel.countDocuments.mockResolvedValue(1);
 
-      const results = await service.findAll({
+      const result = await service.findAll({
         limit: 10,
         offset: 0,
         q: 'A',
@@ -154,8 +172,11 @@ describe('RecordService', () => {
         format: RecordFormat.VINYL,
         category: RecordCategory.ROCK,
       });
-      expect(results.data).toEqual(mockRecords);
-      expect(results.total).toEqual(1);
+
+      expect(mockCacheManager.get).toHaveBeenCalled();
+      expect(mockCacheManager.set).toHaveBeenCalled();
+      expect(result.data).toEqual(mockRecords);
+      expect(result.total).toEqual(1);
     });
   });
 });

@@ -1,4 +1,9 @@
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { CreateRecordRequestDTO } from '../dtos/create-record.request.dto';
 import { Record } from '../schemas/record.schema';
 import { Model } from 'mongoose';
@@ -12,12 +17,15 @@ import {
   FilterRecordService,
   IRecordService,
 } from '../interfaces/record.service.interface';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Cache } from 'cache-manager';
 
 @Injectable()
 export class RecordService implements IRecordService {
   constructor(
     @InjectModel('Record') private readonly recordModel: Model<Record>,
     private readonly musicBrainzService: MusicBrainzService,
+    @Inject(CACHE_MANAGER) private cacheManager: Cache,
   ) {}
 
   async create(payload: CreateRecordRequestDTO): Promise<Record> {
@@ -36,7 +44,9 @@ export class RecordService implements IRecordService {
 
       return this.recordModel.create(recordData);
     } catch (error) {
-      throw new Error(`Error creating record: ${error.message}`);
+      throw new InternalServerErrorException(
+        `Error creating record: ${error.message}`,
+      );
     }
   }
 
@@ -44,7 +54,7 @@ export class RecordService implements IRecordService {
     try {
       const record = await this.recordModel.findById(id);
       if (!record) {
-        throw new InternalServerErrorException('Record not found');
+        throw new BadRequestException('Record not found');
       }
 
       if (payload.mbid && payload.mbid !== record.mbid) {
@@ -57,18 +67,21 @@ export class RecordService implements IRecordService {
         }
       }
 
-      const updated = await this.recordModel.updateOne({
-        ...record,
-        ...payload,
-      });
+      const model = Object.assign(record, payload);
+      const updated = await this.recordModel.updateOne(model);
 
       if (!updated) {
-        throw new InternalServerErrorException('Failed to update record');
+        throw new BadRequestException('Failed to update record');
       }
 
       return record;
     } catch (error) {
-      throw new Error(`Error updating record: ${error.message}`);
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new InternalServerErrorException(
+        `Error updating record: ${error.message}`,
+      );
     }
   }
 
@@ -76,11 +89,16 @@ export class RecordService implements IRecordService {
     try {
       const record = await this.recordModel.findById(id);
       if (!record) {
-        throw new InternalServerErrorException('Record not found');
+        throw new BadRequestException('Record not found');
       }
       return record;
     } catch (error) {
-      throw new Error(`Error finding record: ${error.message}`);
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new InternalServerErrorException(
+        `Error finding record: ${error.message}`,
+      );
     }
   }
 
@@ -91,7 +109,9 @@ export class RecordService implements IRecordService {
       const record = await this.findById(payload.recordId);
       return record.qty >= payload.qty;
     } catch (error) {
-      throw new Error(`Error checking record availability: ${error.message}`);
+      throw new InternalServerErrorException(
+        `Error checking record availability: ${error.message}`,
+      );
     }
   }
 
@@ -100,6 +120,12 @@ export class RecordService implements IRecordService {
   ): Promise<{ data: Record[]; total: number }> {
     const { limit, offset, q, artist, album, format, category } = filter;
     const query: any = {};
+
+    const cacheKey = `records:${limit}:${offset}:${q}:${artist}:${album}:${format}:${category}`;
+    const cached = await this.cacheManager.get(cacheKey);
+    if (cached) {
+      return cached as { data: Record[]; total: number };
+    }
 
     if (q) {
       query.$or = [
@@ -114,16 +140,16 @@ export class RecordService implements IRecordService {
     if (format) query.format = format;
     if (category) query.category = category;
 
-    const response = await this.recordModel
+    const result = await this.recordModel
       .find(query)
       .limit(limit)
       .skip(offset)
       .exec();
 
     const count = await this.recordModel.countDocuments(query);
-
+    await this.cacheManager.set(cacheKey, result);
     return {
-      data: response,
+      data: result,
       total: count,
     };
   }

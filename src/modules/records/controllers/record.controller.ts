@@ -5,12 +5,7 @@ import { CreateRecordRequestDTO } from '../dtos/create-record.request.dto';
 import { RecordCategory, RecordFormat } from '../schemas/record.enum';
 import { UpdateRecordRequestDTO } from '../dtos/update-record.request.dto';
 import { RecordService } from '../services/record.service';
-import {
-  Ctx,
-  MessagePattern,
-  Payload,
-  RmqContext,
-} from '@nestjs/microservices';
+import { MessagePattern, Payload } from '@nestjs/microservices';
 import { CreateOrderRequestDTO } from '../dtos/create-order.request.dto';
 
 @Controller('records')
@@ -18,23 +13,16 @@ export class RecordController {
   constructor(private readonly recordService: RecordService) {}
 
   @MessagePattern({ cmd: 'order:check_availability' })
-  async checkRecordAvailability(
-    @Ctx() context: RmqContext,
-    @Payload() payload: CreateOrderRequestDTO,
-  ) {
-    const channel = context.getChannelRef();
-    channel.ack(context.getMessage());
+  async checkRecordAvailability(@Payload() payload: CreateOrderRequestDTO) {
     return this.recordService.checkRecordAvailability(payload);
   }
 
   @MessagePattern({ cmd: 'order:order_placed' })
-  async orderPlaced(
-    @Ctx() context: RmqContext,
-    @Payload() payload: CreateOrderRequestDTO,
-  ) {
-    const channel = context.getChannelRef();
-    channel.ack(context.getMessage());
-    return this.recordService.update(payload.recordId, { qty: payload.qty });
+  async orderPlaced(@Payload() payload: CreateOrderRequestDTO) {
+    const record = await this.recordService.findById(payload.recordId);
+    return this.recordService.update(payload.recordId, {
+      qty: record.qty - payload.qty,
+    });
   }
 
   @Post()

@@ -1,4 +1,9 @@
-import { Inject, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { CreateOrderRequestDTO } from '../dtos/create-order.request.dto';
 import { Model } from 'mongoose';
 import { Orders } from '../schemas/orders.schema';
@@ -26,7 +31,7 @@ export class OrdersService implements IOrdersService {
       );
 
       if (!isRecordAvailable) {
-        throw new Error('Record is not available');
+        throw new BadRequestException('Record is not available');
       }
 
       await firstValueFrom(
@@ -36,7 +41,12 @@ export class OrdersService implements IOrdersService {
       const createOrderRecord = await this.ordersModel.create(recordData);
       return createOrderRecord;
     } catch (error) {
-      throw new Error(`Error creating order: ${error.message}`);
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new InternalServerErrorException(
+        `Error creating order: ${error.message}`,
+      );
     }
   }
 }
