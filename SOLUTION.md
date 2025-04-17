@@ -12,6 +12,10 @@ Additionally, I believe we should consider introducing a dedicated inventory-ser
 
 So, with this solution we can achieve a more loosely coupled architecture
 
+### POSTMAN or BRUNO or INSOMNIA, etc
+
+- The folder Integration, have the Bruno files that you can import to Postman, or any other tool
+
 ### Improvements Ideas
 
 - Create a Inventory-Service
