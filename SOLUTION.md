@@ -4,7 +4,7 @@
 
 For the Orders functionality, how is the order system related to records? The answer is — it really shouldn’t be. These two domains should be decoupled, with no direct dependency between them.
 
-So, I decided to create a new service called orders-service, which handles order placement independently. I also integrated a queue system using RabbitMQ to emit an event whenever a new order is placed.
+So, I decided to create a new service called orders-service, which handles order placement independently. I also integrated a queue system using RabbitMQ to send an event whenever a new order is placed.
 
 The record-service acts as a consumer for this event. When it receives the message, it processes it by updating the stock — specifically, decreasing the quantity of the records involved in the order.
 
@@ -16,6 +16,7 @@ So, with this solution we can achieve a more loosely coupled architecture
 
 - Create a Inventory-Service
 - Create the Infrastructure (Cloud based)
+- ElasticSearch or Algolia to Search
 
 **High Availability**
 
